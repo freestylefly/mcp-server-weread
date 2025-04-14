@@ -1,10 +1,21 @@
 # 微信读书 MCP 服务器
+[![smithery badge](https://smithery.ai/badge/@freestylefly/mcp-server-weread)](https://smithery.ai/server/@freestylefly/mcp-server-weread)
 
 微信读书MCP服务器是一个桥接微信读书数据和Claude Desktop的轻量级服务器，使您可以在Claude中无缝访问微信读书的笔记和阅读数据。
 
 ## 安装和使用
 
-### 环境准备
+### 安装方法
+
+#### Installing via Smithery
+
+To install WeRead MCP Server for Claude Desktop automatically via [Smithery](https://smithery.ai/server/@freestylefly/mcp-server-weread):
+
+```bash
+npx -y @smithery/cli install @freestylefly/mcp-server-weread --client claude
+```
+
+#### 环境准备
 
 1. 确保您的系统已安装 Node.js (v16+)
 2. 克隆本仓库：`git clone https://github.com/yourusername/mcp-server-weread.git`

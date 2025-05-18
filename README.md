@@ -4,7 +4,7 @@
   <a href="https://opensource.org/license/MIT"><img src="https://img.shields.io/github/license/freestylefly/mcp-server-weread?color=rgb(25%2C%20121%2C%20255)" alt="The MIT License"></a>
   <a href=""><img src="https://img.shields.io/github/forks/freestylefly/mcp-server-weread?color=green" alt="Forks"></a>
   <a href="https://canghecode.com/"><img src="https://img.shields.io/badge/介绍-%E5%AE%98%E7%BD%91-green" alt="Official"></a>
-  <a href="https://github.com/laigeoffer/pmhub"><img src="https://img.shields.io/github/stars/laigeoffer/pmhub?style=flat-square&color=rgb(25%2C%20121%2C%20255)" alt="Stars"></a>    
+  <a href="https://github.com/laigeoffer/pmhub"><img src="https://img.shields.io/github/stars/freestylefly/mcp-server-weread?style=flat-square&color=rgb(25%2C%20121%2C%20255)" alt="Stars"></a>    
   <a href="https://mp.weixin.qq.com/s/NQslbUBgWIBMyvTIa3PfYQ"><img src="https://img.shields.io/badge/WeReadMCP-教程-blue" alt="Experience"></a>  
 </p>
 

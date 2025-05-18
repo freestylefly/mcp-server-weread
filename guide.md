@@ -1,474 +1,389 @@
-# 开发 Flomo MCP，高效记笔记
-## 需求分析
- 
-在本篇内容，我们计划开发一个 mcp-server-flomo 服务，对接 flomo 浮墨笔记 的 API，实现在任意 MCP 客户端，以对话形式创建笔记的功能。
+# 微信读书 MCP Server 基础工具设计
 
-Flomo 是一款专注于碎片化知识记录的轻量级笔记工具，由中国团队开发，主打“无压力记录”和“高效回顾”的理念。它的设计摒弃了传统笔记软件的复杂功能，强调用最简单的方式捕捉灵感、想法和日常思考，适合个人知识管理（PKM）和渐进式学习。
+## 1. 书籍检索工具 (`search_books`)
 
- 
-## 前置准备
- 
-进入 Flomo 笔记 API 管理控制台
+### 功能描述
+Search for books in the user's bookshelf by keywords, returning detailed book information and reading progress.
 
-Flomo API 写笔记是会员专享功能，你需要先升级成 Pro 会员。
-
-升级成 Pro 会员之后，复制你的专属记录 API 链接。
-
-打开终端工具，通过 curl 请求 API
-
-curl -X POST https://flomoapp.com/iwh/MTA4MjYz/1b5817dcd3decd55c834249fd9c7f9ae/ \
--H 'Content-Type: application/json' \
--d '{"content": "从现在开始，我要学习 MCP Server 开发"}'
-回到 Flomo 笔记列表，已经可以看到刚刚通过终端调用 API 写入的笔记。
-
-接下来，我们开始开发 mcp-server-flomo，通过 MCP 服务器对接 Flomo API，实现在任意 MCP 客户端，以对话的形式记笔记。
-
- 
-## 创建 MCP 服务器
- 
-我们选择用 nodejs 来实现 mcp-server-flomo 这个 MCP 服务器。
-
-使用 MCP 官方提供的命令行工具来创建 MCP 服务器：
-
-npx @modelcontextprotocol/create-server mcp-server-flomo
-在终端软件执行上面的命令，按照提示输入要创建的 MCP 服务器信息：
-
-图片
-进入创建的 MCP 服务器目录，安装项目依赖：
-
-cd mcp-server-flomo
-npm install
-用代码编辑器打开创建好的 MCP 服务器，可以看到默认生成的项目代码结构：
-
-图片
-其中，src/index.ts 是 MCP 服务器的源码文件，在此文件实现 MCP 服务器的业务功能。
-
-build/js 是 MCP 服务器源码编译后的可执行文件，调试阶段和发布上线，都要用到此文件。
-
- 
-调试 MCP 服务器
- 
-在 MCP 服务器项目目录下，运行 npm run watch 启动一个监听服务，监听 src/index.ts 源码文件的内容变动，并实时编译成 build/index.js 可执行文件。
-
-在 MCP 服务器项目目录下，运行 npm run inspector，实际执行的命令是：
-
-npx @modelcontextprotocol/inspector build/index.js
-此命令用到了 MCP 官方开发的一个调试工具，运行 MCP 服务器可执行文件，连接到 MCP 服务器进行功能调试。
-
-点击调试面板运行地址，进入 MCP 服务器调试面板。
-
-在 MCP 服务器调试面板，点左侧的 Connect 可以连接到 MCP 服务器进行调试，显示 Connected 表示连接成功。
-
-可以设置 MCP 服务器启动参数 Arguments 和环境变量 Environment Variables，在 MCP 服务器实现逻辑中可以读取这两部分的参数值。
-
-MCP 服务器调试面板右侧主要用于请求 MCP 服务器内部定义的资源（Resources）、提示词（Prompts）、工具（Tools）等内容。
-
-我们可以在右侧的 Tools 栏目点 List Tools 获取 MCP 服务器内部实现的所有工具（Tools）。
-
-通过官方命令行工具创建的 MCP 服务器，默认生成了一个 create_note 工具。
-
-选择 Tools 下的某个工具（比如：create_note），在调试面板填写请求参数，，点 Run Tool，发送请求调用此工具，得到响应数据。
-
- 
-实现 MCP 服务器业务逻辑
- 
-在前面步骤中，我们准备好了一个 Flomo 记笔记的专属链接，并且通过命令行调用 API 的形式进行了调试，跑通了 API 记笔记的流程。
-
-接下来，我们在 mcp-server-flomo 中实现一个工具（Tool），通过工具调用 Flomo API 记笔记。
-
-定义 MCP 服务器信息
-打开 src/index.ts 文件，可以看到默认生成的代码，通过 new Server 创建的 MCP 服务器信息。
-
-const server = new Server(
-  {
-    name: "mcp-server-flomo",
-    version: "0.1.0",
-  },
-  {
-    capabilities: {
-      resources: {},
-      tools: {},
-      prompts: {},
-    },
-  }
-);
-我们要实现的 mcp-server-flomo，只需要实现一个记笔记的工具（Tool），不会实现其他能力。可以修改代码，定义此 MCP 服务器只有 tools 能力。我们可以自定义版本号，比如从 0.0.1 开始。
-
-const server = new Server(
-  {
-    name: "mcp-server-flomo",
-    version: "0.0.1",
-  },
-  {
-    capabilities: {
-      tools: {},
-    },
-  }
-);
-定义 MCP 服务器工具列表
-修改 src/index.ts 文件中默认生成的获取工具列表（ListTools）的逻辑，定义一个 write_note 方法，功能描述用英文写，说明这个工具（Tool）的主要作用是把笔记记录到 Flomo。
-
-write_note 工具只有一个参数：content，Markdown 格式的文本内容，必须填写。
-
-ListTools 的定义如下：
-
-server.setRequestHandler(ListToolsRequestSchema, async () => {
-return {
-    tools: [
-      {
-        name: "write_note",
-        description: "Write note to flomo",
-        inputSchema: {
-          type: "object",
-          properties: {
-            content: {
-              type: "string",
-              description: "Text content of the note with markdown format",
-            },
-          },
-          required: ["content"],
-        },
-      },
-    ],
-  };
-});
-实现 MCP 服务器工具（Tool）逻辑
-我们先创建一个新的文件：src/flomo.ts，定义一个 FlomoClient 类，实现一个 writeNote 方法。接受外部传递的 apiUrl 参数，请求 apiUrl，写入笔记 content：
-
-/**
- * Flomo client used to interact with the Flomo API.
- */
-exportclass FlomoClient {
-private readonly apiUrl: string;
-
-/**
-   * Create a new Flomo client.
-   * @param apiUrl - The API URL of the Flomo API.
-   */
-constructor({ apiUrl }: { apiUrl: string }) {
-    this.apiUrl = apiUrl;
-  }
-
-/**
-   * Write a note to Flomo.
-   * @param content - The content of the note.
-   * @returns The response from the Flomo API.
-   */
-async writeNote({ content }: { content: string }) {
-    try {
-      if (!content) {
-        thrownewError("invalid content");
-      }
-
-      const req = {
-        content,
-      };
-
-      const resp = await fetch(this.apiUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(req),
-      });
-
-      if (!resp.ok) {
-        thrownewError(`request failed with status ${resp.statusText}`);
-      }
-
-      return resp.json();
-    } catch (e) {
-      throw e;
-    }
-  }
+### 参数设计
+```json
+{
+  "keyword": "string", // Search keyword to match book title, author, translator or category
+  "exact_match": false, // Whether to perform exact matching, default is fuzzy matching
+  "include_details": true, // Whether to include detailed information
+  "max_results": 10 // Maximum number of results to return
 }
-然后，我们修改 CallTool 的逻辑，接到 write_note 工具请求时，先获取传递的参数 content，再调用 FlomoClient 的 writeNote 方法写入笔记到 Flomo：
+```
 
-import { FlomoClient } from"./flomo.js";
+### 实现逻辑
+1. 调用 `/api/user/notebook` 获取用户书架上所有有笔记的书籍列表
+2. 根据关键词对书名、作者、译者和分类进行匹配，筛选出符合条件的书籍
+3. 若 `include_details` 为 true，则对每本匹配的书籍：
+   - 调用 `/api/book/info?bookId={bookId}` 获取书籍详情
+   - 调用 `/web/book/getProgress?bookId={bookId}` 获取阅读进度
+4. 整合信息并按照统一格式返回结果
 
-server.setRequestHandler(CallToolRequestSchema, async (request) => {
-switch (request.params.name) {
-    case"write_note": {
-      const content = String(request.params.arguments?.content);
-      if (!content) {
-        thrownewError("Content is required");
-      }
-
-      const apiUrl =
-        "https://flomoapp.com/iwh/MTA4MjYz/1b5817dcd3decd55c834249fd9c7f9ae/";
-
-      const flomo = new FlomoClient({ apiUrl });
-      const result = await flomo.writeNote({ content });
-
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Write note to flomo success: ${JSON.stringify(result)}`,
-          },
-        ],
-      };
-    }
-
-    default:
-      thrownewError("Unknown tool");
-  }
-});
-调试 MCP 服务器工具（Tool）
-在调试工具选择 write_note 工具，填入 content 参数，点击 Run Tool，查看工具的调用结果：
-
-图片
-可以看到，Flomo API 返回了 code: 0, message: "已记录"，表示笔记已记录到 Flomo。
-
-登录 Flomo 笔记后台，可以看到笔记确实已经记录：
-
-图片
- 
-优化 MCP 服务器代码
- 
-通过前面的步骤，我们在 mcp-server-flomo 实现了一个工具：write_note，通过 Flomo API 写入笔记到 Flomo。
-
-基本的业务逻辑已经实现，在发布上线之前，还有一些小问题可以优化。
-
-删除冗余代码
-由于 mcp-server-flomo 的核心逻辑只有一个工具：write_note，可以把 src/index.ts 文件中，默认生成的，跟 Tool 无关的代码都删掉，包括这几部分的逻辑：
-
-ListResources
-ReadResource
-ListPrompts
-GetPrompt
-修改响应数据
-在 3.2.4 小节中，调用 create_note 写入笔记成功后，我们把 API 的响应数据通过 JSON 格式化后直接返回，这种格式的响应数据，对于前端调用方，不够友好。
-
-我们可以改成，返回 Flomo 笔记详情页的链接。
-
-格式类似：https://v.flomoapp.com/mine/?memo_id=xxx
-
-因此，我们修改一下 CallTool 方法里面响应的数据内容：
-
-const flomo = new FlomoClient({ apiUrl });
-const result = await flomo.writeNote({ content });
-
-if (!result.memo || !result.memo.slug) {
-thrownewError(
-    `Failed to write note to flomo: ${result?.message || "unknown error"}`
-  );
-}
-
-const flomoUrl = `https://v.flomoapp.com/mine/?memo_id=${result.memo.slug}`;
-
-return {
-  content: [
+### 返回格式
+```json
+{
+  "total_matches": 2,
+  "books": [
     {
-      type: "text",
-      text: `Write note to flomo success, view it at: ${flomoUrl}`,
+      "book_id": "27416212",
+      "title": "隐藏的自我",
+      "author": "大卫·伊格曼",
+      "translator": "钱静",
+      "category": "科学技术-科学科普",
+      "publish_info": "浙江教育出版社 2019-12",
+      "reading_status": {
+        "progress": 96,
+        "reading_time": 72917,
+        "last_read_time": "2025-05-01T12:34:58Z",
+        "note_count": 42,
+        "bookmark_count": 35,
+        "review_count": 14
+      },
+      "book_info": {
+        "word_count": 140657,
+        "rating": 8.2,
+        "rating_count": 1234,
+        "description": "为什么在意识到前方有危险之前，你的脚已经踩上了刹车？..." // 简介摘要
+      }
     },
-  ],
+    {
+      // 第二本匹配书籍
+    }
+  ]
+}
+```
+
+### 代码示例
+```javascript
+// services/bookService.js
+const searchBooks = async (cookies, params) => {
+  try {
+    // 1. 获取书架上所有有笔记的书籍
+    const notebookResponse = await axios.get('https://weread.qq.com/api/user/notebook', {
+      headers: { 'Cookie': cookies }
+    });
+    
+    const allBooks = notebookResponse.data.books || [];
+    
+    // 2. 根据关键词筛选
+    const keyword = params.keyword.toLowerCase();
+    const matchedBooks = allBooks.filter(book => {
+      const title = book.book.title.toLowerCase();
+      const author = book.book.author.toLowerCase();
+      const translator = book.book.translator ? book.book.translator.toLowerCase() : "";
+      
+      // 获取分类信息
+      let category = "";
+      if (book.book.categories && book.book.categories.length > 0) {
+        category = book.book.categories[0].title.toLowerCase();
+      }
+      
+      if (params.exact_match) {
+        return title === keyword || author === keyword || 
+               translator === keyword || category === keyword;
+      } else {
+        return title.includes(keyword) || author.includes(keyword) || 
+               translator.includes(keyword) || category.includes(keyword);
+      }
+    }).slice(0, params.max_results);
+    
+    // 3. 获取详细信息
+    const booksWithDetails = [];
+    
+    if (params.include_details) {
+      for (const matchedBook of matchedBooks) {
+        const bookId = matchedBook.bookId;
+        
+        // 3.1 获取书籍详情
+        const bookInfoResponse = await axios.get(`https://weread.qq.com/api/book/info`, {
+          params: { bookId },
+          headers: { 'Cookie': cookies }
+        });
+        
+        // 3.2 获取阅读进度
+        const progressResponse = await axios.get(`https://weread.qq.com/web/book/getProgress`, {
+          params: { bookId },
+          headers: { 'Cookie': cookies }
+        });
+        
+        // 3.3 整合信息
+        booksWithDetails.push({
+          book_id: bookId,
+          title: matchedBook.book.title,
+          author: matchedBook.book.author,
+          translator: matchedBook.book.translator || "",
+          cover_url: matchedBook.book.cover,
+          category: bookInfoResponse.data.category || "",
+          publish_info: `${bookInfoResponse.data.publisher || ""} ${bookInfoResponse.data.publishTime ? bookInfoResponse.data.publishTime.substring(0, 7) : ""}`,
+          reading_status: {
+            progress: progressResponse.data.book.progress || 0,
+            reading_time: progressResponse.data.book.readingTime || 0,
+            last_read_time: new Date(progressResponse.data.book.updateTime * 1000).toISOString(),
+            note_count: matchedBook.noteCount || 0,
+            bookmark_count: matchedBook.bookmarkCount || 0,
+            review_count: matchedBook.reviewCount || 0
+          },
+          book_info: {
+            word_count: bookInfoResponse.data.totalWords || 0,
+            rating: bookInfoResponse.data.newRating ? bookInfoResponse.data.newRating/100 : 0,
+            description: bookInfoResponse.data.intro ? bookInfoResponse.data.intro.substring(0, 100) + "..." : ""
+          }
+        });
+      }
+      
+      return {
+        total_matches: booksWithDetails.length,
+        books: booksWithDetails
+      };
+    } else {
+      // 简化版返回结果
+      return {
+        total_matches: matchedBooks.length,
+        books: matchedBooks.map(book => ({
+          book_id: book.bookId,
+          title: book.book.title,
+          author: book.book.author,
+          translator: book.book.translator || "",
+          cover_url: book.book.cover,
+          note_count: book.noteCount,
+          bookmark_count: book.bookmarkCount,
+          review_count: book.reviewCount
+        }))
+      };
+    }
+  } catch (error) {
+    console.error('Error searching books:', error);
+    throw new Error(`书籍检索失败: ${error.message}`);
+  }
 };
-修改动态参数
-我们开发的这个 mcp-server-flomo 服务器，是给到所有用户使用的，不同的用户会有不同的 Flomo API Url，因此我们要在 write_note 工具里面动态设置 apiUrl 参数。
+```
 
-有两种方法可以动态传参：
+## 2. 获取特定书籍的划线和笔记工具 (`get_book_notes_and_highlights`)
 
-通过服务启动命令传递参数
-实现一个 parseArgs 函数，在服务启动的时候，从命令行参数中读取 flomo_api_url
+### 功能描述
+Get all highlights and notes for a specific book, organized by chapters.
 
-/**
- * Parse command line arguments
- * Example: node index.js --flomo_api_url=https://flomoapp.com/iwh/xxx/xxx/
- */
-function parseArgs() {
-const args: Record<string, string> = {};
-  process.argv.slice(2).forEach((arg) => {
-    if (arg.startsWith("--")) {
-      const [key, value] = arg.slice(2).split("=");
-      args[key] = value;
-    }
-  });
-return args;
-}
-
-const args = parseArgs();
-const apiUrl = args.flomo_api_url || "";
-修改 CallTool 内部实现逻辑，判断 apiUrl 是否传递，动态传入 apiUrl 参数，用于记笔记：
-
-if (!apiUrl) {
-thrownewError("Flomo API URL not set");
-}
-
-const content = String(request.params.arguments?.content);
-if (!content) {
-thrownewError("Content is required");
-}
-
-const flomo = new FlomoClient({ apiUrl });
-const result = await flomo.writeNote({ content });
-在调试控制台，在 Arguments 输入框设置参数：--flomo_api_url=https://flomoapp.com/iwh/xxx/xxx/
-
-请求 write_note 工具，写入笔记成功。
-
-图片
-对应的服务启动命令是：
-
-node build/index.js --flomo_api_url=https://flomoapp.com/iwh/xxx/xxx/
-
-通过环境变量传递参数
-我们也可以通过环境变量设置动态参数，作为命令行读取参数的一个补充。
-
-修改动态参数的读取逻辑，优先读取命令行参数，如果命令行参数未传递，就从环境变量读取参数：
-
-const args = parseArgs();
-const apiUrl = args.flomo_api_url || process.env.FLOMO_API_URL || "";
-在调试面板，删掉 Arguments，添加环境变量：FLOMO_API_URL 并设置值。
-
-请求 write_note 工具，写入笔记成功。
-
-图片
-对应的服务启动命令是：
-
-FLOMO_API_URL=https://flomoapp.com/iwh/xxx/xxx/ node build/index.js
-
- 
-在 MCP 客户端测试
- 
-我们选择 Cursor AI 编辑器，作为 MCP 客户端。来测试我们开发的 mcp-server-flomo 服务器。
-
-首先，打开 Cursor 的 MCP 服务器配置文件。（一般位于 ~/.cursor/mcp.json）
-
-写入连接 mcp-server-flomo 的配置：
-
+### 参数设计
+```json
 {
-  "mcpServers": {
-    "mcp-server-flomo": {
-      "command": "node",
-      "args": [
-        "/Users/idoubi/code/all-in-aigc/mcpservers/mcp-server-flomo/build/index.js"
+  "book_id": "string", // Required, Book ID
+  "include_chapters": true, // Whether to include chapter information
+  "organize_by_chapter": true, // Whether to organize by chapter
+  "highlight_style": null // Highlight style filter, null means all
+}
+```
+
+### 实现逻辑
+1. 调用 `/web/book/chapterInfos` 获取书籍的章节信息
+   - 使用POST方法，并设置正确的请求头和JSON请求体格式
+2. 调用 `/web/book/bookmarklist?bookId={bookId}` 获取书籍的划线记录
+3. 调用 `/api/review/list?bookId={bookId}&listType=11&syncKey=0&mine=1` 获取书籍的笔记记录
+4. 整合划线和笔记信息，按章节顺序组织
+5. 返回结构化的数据
+
+### 返回格式
+```json
+{
+  "book_id": "27416212",
+  "book_title": "隐藏的自我",
+  "total_highlights": 35,
+  "total_notes": 14,
+  "last_updated": "2025-05-01T12:34:58Z",
+  "chapters": [
+    {
+      "chapter_id": 5,
+      "chapter_idx": 5,
+      "title": "01 大脑通常是以隐藏模式运行的",
+      "level": 1,
+      "highlights": [
+        {
+          "highlight_id": "27416212_5_123-456",
+          "text": "基因组的作用只有在与环境相互作用的情况下才能真正被理解。",
+          "style": 3,
+          "create_time": "2025-04-29T10:23:43Z"
+        }
       ],
-      "env": {
-        "FLOMO_API_URL": "https://flomoapp.com/iwh/xxx/xxx/"
-      }
+      "notes": [
+        {
+          "note_id": "82355925_7ZLpqbTrm",
+          "content": "人的性格，情绪，状态波动其实也源于大脑状态的改变。但大脑的状态对\"自我意识\"而言是不可知的",
+          "highlight_text": "由于我们的大脑会出现异常的波动，有时候会发现自己更为急躁、幽默、健谈、平静、有活力，或者思维更清晰。我们的内在环境和外在行为受到生物基础的引导，既不能直接接触，也不能直接认识。",
+          "create_time": "2025-04-29T10:25:32Z"
+        }
+      ]
+    }
+  ]
+}
+```
+
+## 3. 获取书架信息工具 (`get_bookshelf`)
+
+### 功能描述
+Get all books in the user's WeRead bookshelf.
+
+### 参数设计
+此工具不需要参数。
+
+### 实现逻辑
+1. 调用 `/api/user/notebook` 获取用户书架上所有有笔记的书籍列表
+2. 整理返回结果，提取每本书籍的关键信息
+
+### 返回格式
+```json
+{
+  "books": [
+    {
+      "bookId": "27416212",
+      "title": "隐藏的自我",
+      "author": "大卫·伊格曼",
+      "translator": "钱静",
+      "category": "科学技术-科学科普",
+      "finished": true,
+      "updateTime": "2025-05-01T12:34:58Z",
+      "noteCount": 42,
+      "reviewCount": 4,
+      "bookmarkCount": 35
+    },
+    {
+      // 第二本书籍
+    }
+  ]
+}
+```
+
+## 工具注册与LLM调用方式
+
+在MCP Server中，可以通过以下方式将这两个工具注册为LLM可调用的函数：
+
+```javascript
+// 工具注册配置
+const tools = [
+  {
+    name: "search_books",
+    description: "通过关键词搜索用户书架上的书籍",
+    parameters: {
+      type: "object",
+      properties: {
+        keyword: {
+          type: "string",
+          description: "搜索关键词，用于匹配书名或作者"
+        },
+        exact_match: {
+          type: "boolean",
+          description: "是否精确匹配，默认为模糊匹配",
+          default: false
+        },
+        include_details: {
+          type: "boolean",
+          description: "是否包含详细信息",
+          default: true
+        },
+        max_results: {
+          type: "integer",
+          description: "最多返回结果数",
+          default: 5
+        }
+      },
+      required: ["keyword"]
+    },
+    function: async (cookies, params) => {
+      return await bookService.searchBooks(cookies, params);
+    }
+  },
+  {
+    name: "get_book_notes_and_highlights",
+    description: "获取指定书籍的所有划线和笔记，并按章节组织返回",
+    parameters: {
+      type: "object",
+      properties: {
+        book_id: {
+          type: "string",
+          description: "书籍ID"
+        },
+        include_chapters: {
+          type: "boolean",
+          description: "是否包含章节信息",
+          default: true
+        },
+        organize_by_chapter: {
+          type: "boolean",
+          description: "是否按章节组织",
+          default: true
+        },
+        highlight_style: {
+          type: ["integer", "null"],
+          description: "划线样式筛选，null表示全部",
+          default: null
+        }
+      },
+      required: ["book_id"]
+    },
+    function: async (cookies, params) => {
+      return await noteService.getBookNotesAndHighlights(cookies, params);
     }
   }
-}
-通过环境变量传递 FLOMO_API_URL，args 里面填写 mcp-server-flomo 服务编译后文件的绝对地址。
+];
+```
 
-在 Cursor 的 MCP 配置面板，可以看到 mcp-server-flomo 服务已经成功运行，并且获取到了可用的 Tools。
+## 使用场景示例
 
-打开 Cursor AI 对话面板，选择 Agent 模式，输入以下或类似内容：
+### 场景1: 用户想找出关于"认知科学"的书籍
+```
+用户: "帮我找一下我书架上关于认知科学的书"
 
-我今天开发了一个 MCP 服务器，感觉很开心。帮我记录一下。
-Cursor 会加载所有已配置的可用的 Tools 进行意图识别，识别到用户的意图是要记笔记，会自动调用 mcp-server-flomo 服务的 write_note 工具写入笔记。
+LLM调用: search_books({keyword: "认知科学", include_details: true})
 
-图片
- 
-发布 MCP 服务器
- 
-在 MCP 客户端测试成功后，证明我们开发的 MCP 服务器功能正常，可以发布上线给其他人使用了。
+系统响应: [返回匹配的书籍列表]
 
-发布到 Github 平台
-我们可以选择把新开发的 mcp-server-flomo 代码发布到 Github，开源给全世界的人使用。
+LLM回复: "我在您的书架上找到了2本关于认知科学的书:
+1. 《隐藏的自我》(大卫·伊格曼) - 已阅读96%，您做了42个笔记
+2. 《思考，快与慢》(丹尼尔·卡尼曼) - 已阅读75%，您做了28个笔记
 
-首先，更新 README.md 文件，写入 mcp-server-flomo 在 MCP 客户端的配置和使用说明。
+您想了解哪本书的更多信息或笔记?"
+```
 
-在 Github 创建代码仓库，并提交代码：
+### 场景2: 用户想查看特定书籍的笔记
+```
+用户: "帮我整理一下《隐藏的自我》这本书中关于'大脑决策'的笔记"
 
-cd mcp-server-flomo
-git init
-git remote add origin git@github.com:chatmcp/mcp-server-flomo.git
-git add .
-git commit -m "first version"
-git push origin main
-上传代码到 Github 后，全世界的用户都可以通过代码仓库地址：
+LLM首先调用: search_books({keyword: "隐藏的自我", exact_match: true})
+系统响应: [返回书籍信息，包含book_id]
 
-https://github.com/chatmcp/mcp-server-flomo
+LLM然后调用: get_book_notes_and_highlights({book_id: "27416212", organize_by_chapter: true})
+系统响应: [返回书籍的所有划线和笔记，按章节组织]
 
-访问这个 mcp-server-flomo MCP 服务器代码，克隆代码到他们本地电脑运行，在 MCP 客户端配置后使用。
+LLM处理: [分析所有笔记和划线，筛选出包含"大脑决策"相关内容]
 
-图片
-发布到 npm 平台
-如果我们希望其他人，在不克隆源代码的情况下，通过拉取可执行文件到本地的方式，来运行我们开发的服务。
+LLM回复: "在《隐藏的自我》中，我找到了以下与'大脑决策'相关的笔记和划线:
 
-我们需要把 mcp-server-flomo 作为一个 npm 包，发布到 npm 应用市场
+第五章《我们的行为是大脑不同系统竞争的结果》:
+1. 您的笔记: '大脑中存在多个相互竞争的决策系统，理性与情绪常常冲突'
+2. 划线: '两党制：大脑是理性的还是情绪化的...'
 
-首先，修改 mcp-server-flomo 项目的 package.json，作为一个公开类型的 npm 包，发布到一个指定的组织：@chatmcp（这是我创建的，专门用来发布 mcp-server 的组织，你可以在 npm 管理后台创建自己的组织）
+第六章《对大脑所做的决策进行"问责"不可取》:
+1. 您的笔记: '自由意志的幻觉 - 决策在意识之前就已经完成'
+2. 划线: '我们是否拥有自由意志...'
 
-{
-  "name": "@chatmcp/mcp-server-flomo",
-"version": "0.0.1",
-"description": "write notes to flomo.",
-"private": false,
-"type": "module",
-"homepage": "https://github.com/chatmcp/mcp-server-flomo",
-"bin": {
-    "mcp-server-flomo": "./build/index.js"
-  },
-"files": ["build"],
-"scripts": {
-    "build": "tsc && node -e \"require('fs').chmodSync('build/index.js', '755')\"",
-    "prepare": "npm run build",
-    "watch": "tsc --watch",
-    "inspector": "npx @modelcontextprotocol/inspector build/index.js"
-  },
-"dependencies": {
-    "@modelcontextprotocol/sdk": "0.6.0"
-  },
-"devDependencies": {
-    "@types/node": "^20.11.24",
-    "typescript": "^5.3.3"
-  }
-}
-然后，执行命令，发布 npm 包：
+这些内容主要讨论了大脑决策过程中的双系统理论、情绪与理性的关系，以及自由意志的问题。您想深入了解哪个方面？"
+```
 
-cd mcp-server-flomo
-npm install
-npm run build
-npm login # 打开登录连接，网页登录 npm 平台
-npm publish --access public # 公开发布
-发布成功后，打开 npm 包的访问地址：
+## 优势和考量
 
-https://www.npmjs.com/package/@chatmcp/mcp-server-flomo
+1. **模块化设计**：这两个基础工具提供了足够的基础功能，可以满足大多数用户场景
 
-可以看到我们发布到 npm 包：
+2. **性能优化**：
+   - 避免了遍历所有书籍的性能问题
+   - 通过参数设计允许灵活控制返回数据量
+   - 支持精确匹配选项减少不必要的数据处理
 
-图片
-修改 MCP 客户端的配置信息，使用 npx 运行 MCP 服务器二进制的方式来连接服务：
+3. **灵活扩展**：
+   - 基于这两个基础工具，LLM可以完成许多复杂任务
+   - 未来可以根据需求添加更多专用工具
 
-{
-  "mcpServers": {
-    "mcp-server-flomo": {
-      "command": "npx",
-      "args": ["-y", "@chatmcp/mcp-server-flomo"],
-      "env": {
-        "FLOMO_API_URL": "https://flomoapp.com/iwh/xxx/xxx/"
-      }
-    }
-  }
-}
-在 MCP 客户端（比如 Cursor）继续测试，例如可以在利用 AI 解决某个问题之后，一键保存问题信息和解决办法到 Flomo：
-
-图片
-这样，我们就可以在 Flomo 查找和回顾日常记录的一些问题：
-
-图片
- 
-提交到 MCP 应用商店
- 
-我们可以把开发的 mcp-server-flomo 提交到第三方 MCP 应用商店，让更多的人看到和使用。
-
-MCP.so 是一个知名的第三方 MCP 应用商店，收录了全世界用户开发的优质 MCP 应用。（包括 MCP 服务器和 MCP 客户端）
-
-图片
-点击进入 Submit 页面，填写我们的 MCP 服务器信息，把服务提交到 MCP.so 应用商店：
-
-图片
-提交 MCP 服务器之后，就可以在 MCP.so 应用商店看到自己的 MCP 服务器。用户在 MCP 服务器页面，填写配置参数，连接到服务器，可以在线调试。
-
-图片
- 
-小结
- 
-本篇内容，我们开发了一个 MCP 服务器：mcp-server-flomo，对接 Flomo API，实现了在 MCP 客户端高效记笔记的功能。
-
-详细介绍了 MCP 服务器的开发流程和发布流程。通过 MCP 服务器的自定义工具（Tool），连接了远端的内容平台（Flomo），在任意支持 MCP 协议的客户端，以对话的形式交互，体验更好。
-
-以此为例，我们可以开发更多的 MCP 服务器，以 API 的形式对接各类平台和资源。
+4. **用户体验**：
+   - 返回数据结构清晰，便于LLM理解和呈现
+   - 支持按章节组织的笔记提供更好的上下文理解

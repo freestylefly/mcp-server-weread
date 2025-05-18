@@ -1,8 +1,8 @@
 {
   "name": "mcp-server-weread",
-  "version": "0.1.0",
-  "description": "A WeRead MCP Server for seamless integration with Claude Desktop",
-  "private": true,
+  "version": "0.2.2",
+  "description": "A WeRead MCP Server",
+  "private": false,
   "type": "module",
   "bin": {
     "mcp-server-weread": "./build/index.js"
@@ -14,7 +14,8 @@
     "build": "tsc && node -e \"require('fs').chmodSync('build/index.js', '755')\"",
     "prepare": "npm run build",
     "watch": "tsc --watch",
-    "inspector": "npx @modelcontextprotocol/inspector build/index.js"
+    "inspector": "npx @modelcontextprotocol/inspector build/index.js",
+    "start": "node build/index.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "0.6.0",

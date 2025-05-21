@@ -148,6 +148,20 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ["book_id"]
         }
       },
+      {
+        name: "get_book_ai_summary",
+        description: "Get the AI-generated summary for a specific book in Markdown format.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            book_id: {
+              type: "string",
+              description: "The ID of the book for which to fetch the AI summary."
+            }
+          },
+          required: ["book_id"]
+        }
+      }
     ]
   };
 });
@@ -848,6 +862,24 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               has_more: hasMore,
               sync_key: syncKey,
               reviews: processedReviews
+            }, null, 2)
+          }]
+        };
+      }
+
+      // Get AI-generated book summary
+      case "get_book_ai_summary": {
+        const bookId = String(request.params.arguments?.book_id || "");
+        if (!bookId) {
+          throw new Error("Book ID must be provided for get_book_ai_summary.");
+        }
+        const summaryMarkdown = await wereadApi.getBookAISummary(bookId);
+        return {
+          content: [{
+            type: "text",
+            text: JSON.stringify({
+              book_id: bookId,
+              ai_summary_markdown: summaryMarkdown
             }, null, 2)
           }]
         };

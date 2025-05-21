@@ -14,6 +14,7 @@ const WEREAD_REVIEW_LIST_URL = "https://weread.qq.com/web/review/list";
 const WEREAD_READ_INFO_URL = "https://weread.qq.com/web/book/getProgress";
 const WEREAD_SHELF_SYNC_URL = "https://weread.qq.com/web/shelf/sync";
 const WEREAD_BEST_REVIEW_URL = "https://weread.qq.com/web/review/list/best";
+const WEREAD_AI_SUMMARY_URL = "https://weread.qq.com/web/book/outline";
 
 interface ChapterInfo {
   chapterUid: number;
@@ -545,5 +546,50 @@ export class WeReadApi {
         throw error;
       }
     });
+  }
+
+  public async getBookAISummary(bookId: string): Promise<string> {
+    await this.ensureInitialized();
+
+    const url = `${WEREAD_AI_SUMMARY_URL}?bookId=${bookId}`; // Ensure WEREAD_AI_SUMMARY_URL is defined and accessible
+
+    try {
+      const response = await this.makeApiRequest<any>(url, "get");
+
+      if (!response || !Array.isArray(response.itemsArray) || response.itemsArray.length === 0) {
+        return "No AI summary available for this book.";
+      }
+
+      let markdownSummary = "";
+
+      for (const section of response.itemsArray) {
+        if (section && Array.isArray(section.items)) {
+          for (const item of section.items) {
+            if (item && typeof item.text === 'string' && typeof item.level === 'number') {
+              switch (item.level) {
+                case 1:
+                  markdownSummary += `# ${item.text}\n`;
+                  break;
+                case 2:
+                  markdownSummary += `## ${item.text}\n`;
+                  break;
+                default:
+                  if (item.level >= 3) {
+                    const indent = "  ".repeat(item.level - 3);
+                    markdownSummary += `${indent}- ${item.text}\n`;
+                  }
+                  break;
+              }
+            }
+          }
+        }
+      }
+      return markdownSummary;
+    } catch (error: any) {
+      console.error(`Failed to fetch or process AI summary for bookId ${bookId}:`, error.message);
+      // Consider if makeApiRequest already handles console.error or if additional logging is needed here.
+      // Depending on desired behavior, you might re-throw, or return a specific error message.
+      return `Error fetching AI summary: ${error.message}`;
+    }
   }
 }

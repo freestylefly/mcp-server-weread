@@ -15,7 +15,8 @@
     "prepare": "npm run build",
     "watch": "tsc --watch",
     "inspector": "npx @modelcontextprotocol/inspector build/index.js",
-    "start": "node build/index.js"
+    "start": "node build/index.js",
+    "test": "jest"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "0.6.0",
@@ -23,7 +24,12 @@
     "dotenv": "^16.3.1"
   },
   "devDependencies": {
+    "@babel/preset-env": "^7.27.2",
+    "@babel/preset-typescript": "^7.27.1",
+    "@types/jest": "^29.5.14",
     "@types/node": "^20.11.24",
-    "typescript": "^5.3.3"
+    "jest": "^29.7.0",
+    "ts-jest": "^29.3.4",
+    "typescript": "^5.8.3"
   }
 }

@@ -148,6 +148,30 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ["book_id"]
         }
       },
+      {
+        name: "get_book_best_bookmarks",
+        description: "Get popular highlights/bookmarks for a specific book from the community",
+        inputSchema: {
+          type: "object",
+          properties: {
+            book_id: {
+              type: "string",
+              description: "Book ID"
+            },
+            count: {
+              type: "integer",
+              description: "Number of bookmarks to return (max 200)",
+              default: 10
+            },
+            synckey: {
+              type: "integer",
+              description: "Sync key for pagination",
+              default: 0
+            }
+          },
+          required: ["book_id"]
+        }
+      },
     ]
   };
 });
@@ -453,6 +477,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           };
         } else {
           // 简化版返回结果
+          
           return {
             content: [{
               type: "text",
@@ -848,6 +873,73 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
               has_more: hasMore,
               sync_key: syncKey,
               reviews: processedReviews
+            }, null, 2)
+          }]
+        };
+      }
+
+      // 获取书籍热门划线
+      case "get_book_best_bookmarks": {
+        const bookId = String(request.params.arguments?.book_id || "");
+        const count = Number(request.params.arguments?.count || 10);
+        const synckey = Number(request.params.arguments?.synckey || 0);
+        
+        if (!bookId) {
+          throw new Error("书籍ID不能为空");
+        }
+        
+        // 1. 获取书籍信息
+        const bookInfo = await wereadApi.getBookinfo(bookId);
+        
+        // 2. 获取热门划线
+        const bestBookmarksData = await wereadApi.getBestBookmarks(bookId, count, synckey);
+        
+        // 3. 提取基础数据
+        const bestBookMarks = bestBookmarksData.bestBookMarks || {};
+        const hasMore = bestBookMarks.hasMore || false;
+        const syncKey = bestBookMarks.synckey || 0;
+        const totalCount = bestBookMarks.totalCount || 0;
+        
+        // 4. 处理每条划线
+        let processedBookmarks: any[] = [];
+        
+        if (bestBookMarks.items && Array.isArray(bestBookMarks.items)) {
+          // 创建章节映射以便获取章节标题
+          const chapterMap: Record<number, string> = {};
+          if (bestBookMarks.chapters && Array.isArray(bestBookMarks.chapters)) {
+            bestBookMarks.chapters.forEach((chapter: any) => {
+              chapterMap[chapter.chapterUid] = chapter.title;
+            });
+          }
+          
+          processedBookmarks = bestBookMarks.items
+            .filter((item: any) => {
+              return item && item.markText;
+            })
+            .map((item: any) => {
+              return {
+                bookmark_id: item.bookmarkId || "",
+                text: item.markText || "",
+                chapter_title: chapterMap[item.chapterUid] || "未知章节",
+                range: item.range || "",
+                total_likes: item.totalCount || 0
+              };
+            })
+            .filter(Boolean); // 过滤掉null值
+        }
+        
+        // 5. 返回结果
+        return {
+          content: [{
+            type: "text",
+            text: JSON.stringify({
+              book_id: bookId,
+              book_title: bookInfo.title || "",
+              book_author: bookInfo.author || "",
+              total_bookmarks: totalCount,
+              has_more: hasMore,
+              sync_key: syncKey,
+              bookmarks: processedBookmarks
             }, null, 2)
           }]
         };

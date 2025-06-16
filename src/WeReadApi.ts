@@ -14,6 +14,7 @@ const WEREAD_REVIEW_LIST_URL = "https://weread.qq.com/web/review/list";
 const WEREAD_READ_INFO_URL = "https://weread.qq.com/web/book/getProgress";
 const WEREAD_SHELF_SYNC_URL = "https://weread.qq.com/web/shelf/sync";
 const WEREAD_BEST_REVIEW_URL = "https://weread.qq.com/web/review/list/best";
+const WEREAD_BEST_BOOKMARK_URL = "https://weread.qq.com/web/book/bestbookmarks";
 
 interface ChapterInfo {
   chapterUid: number;
@@ -418,6 +419,22 @@ export class WeReadApi {
         synckey,
         maxIdx,
         count
+      });
+      
+      return data;
+    });
+  }
+
+  // 获取热门划线
+  public async getBestBookmarks(bookId: string, count: number = 10, synckey: number = 0): Promise<any> {
+    await this.ensureInitialized();
+    // 限制count的最大值为200，这是API的限制
+    const limitedCount = Math.min(count, 200);
+    return this.retry(async () => {
+      const data = await this.makeApiRequest<any>(WEREAD_BEST_BOOKMARK_URL, "get", {
+        bookId,
+        synckey,
+        count: limitedCount
       });
       
       return data;
